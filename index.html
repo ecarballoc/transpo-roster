@@ -211,16 +211,34 @@ function parseCSV(text) {
 }
 
 function toISO(val) {
-  const s = (val || '').trim();
+  const s = (val || '').trim().replace(/"/g, '');
   if (!s) return null;
+
+  // Already ISO YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+
+  // Excel serial number (e.g. 46919)
   const n = parseFloat(s);
-  if (!isNaN(n) && n > 40000) {
+  if (!isNaN(n) && n > 40000 && n < 60000) {
     const d = new Date(Math.round((n - 25569) * 86400 * 1000));
     return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
   }
+
+  // MM/DD/YYYY or M/D/YYYY (Google Sheets CSV default)
+  const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdy) {
+    return mdy[3] + '-' + mdy[1].padStart(2,'0') + '-' + mdy[2].padStart(2,'0');
+  }
+
+  // DD/MM/YYYY
+  const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmy) {
+    return dmy[3] + '-' + dmy[2].padStart(2,'0') + '-' + dmy[1].padStart(2,'0');
+  }
+
+  // Try native Date parse as last resort
   const d = new Date(s);
-  if (!isNaN(d.getTime())) {
+  if (!isNaN(d.getTime()) && d.getFullYear() > 2020) {
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   }
   return null;
@@ -229,8 +247,28 @@ function toISO(val) {
 function buildSchedule(rows) {
   if (rows.length < 5) return {};
 
-  const dateRow = rows[3] || [];
-  const peopleRows = rows.slice(4, 16);
+  // Find the row that contains dates (look for row with multiple date-like values)
+  let dateRowIdx = 3;
+  for (let r = 0; r < Math.min(rows.length, 8); r++) {
+    let dateCount = 0;
+    for (let c = 1; c < rows[r].length; c++) {
+      if (toISO(rows[r][c])) dateCount++;
+    }
+    if (dateCount > 5) { dateRowIdx = r; break; }
+  }
+
+  const dateRow = rows[dateRowIdx] || [];
+  // People rows: scan for rows with YN/YD codes
+  const peopleRows = [];
+  for (let r = dateRowIdx + 1; r < rows.length; r++) {
+    const row = rows[r];
+    const name = (row[1] || '').trim();
+    if (!name || name.toUpperCase() === 'FULL NAME') continue;
+    // Check if this row has schedule codes
+    const hasCodes = row.slice(2).some(c => ['YN','YD','OFF'].includes((c||'').trim().toUpperCase()));
+    if (hasCodes && name.length > 2) peopleRows.push(row);
+    if (peopleRows.length >= 12) break;
+  }
 
   const dateCols = {};
   for (let c = 2; c < dateRow.length; c++) {
@@ -238,12 +276,13 @@ function buildSchedule(rows) {
     if (d) dateCols[c] = d;
   }
 
+  if (Object.keys(dateCols).length === 0) return {};
+
   const ynByDate = {}, ydByDate = {};
   for (const [ci, dateStr] of Object.entries(dateCols)) {
     const yn = [], yd = [];
     for (const row of peopleRows) {
       const name = (row[1] || '').trim();
-      if (!name || name === 'FULL NAME') continue;
       const code = (row[parseInt(ci)] || '').trim().toUpperCase();
       if (code === 'YN') yn.push(name);
       else if (code === 'YD') yd.push(name);
@@ -298,7 +337,11 @@ async function loadData() {
     SCHEDULE = buildSchedule(rows);
 
     const dates = Object.keys(SCHEDULE).sort();
-    if (dates.length === 0) throw new Error('No schedule data found — check the sheet structure.');
+    if (dates.length === 0) {
+      // Show first few rows for diagnosis
+      const preview = rows.slice(0,5).map(r => r.slice(0,5).join(' | ')).join('\n');
+      throw new Error('No schedule data found. Sheet preview:\n' + preview);
+    }
 
     document.getElementById('dateInput').min = dates[0];
     document.getElementById('dateInput').max = dates[dates.length - 1];
@@ -310,12 +353,12 @@ async function loadData() {
     else setToday();
 
   } catch(err) {
-    setStatus('error', '⚠ Could not load data: ' + err.message);
+    setStatus('error', '⚠ ' + err.message.split('\n')[0]);
     document.getElementById('mainContent').innerHTML = `
       <div class="no-data">
         <div class="icon">⚠️</div>
         <p style="margin-bottom:8px">Could not load roster data.</p>
-        <small style="color:#64748b">Make sure the Google Sheet is published and you have internet access.<br>Try clicking "Refresh Data".</small>
+        <pre style="color:#64748b;font-size:11px;text-align:left;max-width:600px;margin:0 auto;white-space:pre-wrap">${err.message}</pre>
       </div>`;
   } finally {
     btn.classList.remove('loading');
