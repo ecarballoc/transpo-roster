@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Transport Roster</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  .header {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-bottom: 2px solid #1d4ed8;
+    padding: 24px 32px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .header-icon { font-size: 40px; }
+  .header-title { font-size: 22px; font-weight: 700; color: #f1f5f9; letter-spacing: 1px; }
+  .header-sub { font-size: 13px; color: #94a3b8; margin-top: 3px; }
+  .header-logo { margin-left: auto; opacity: 0.92; }
+
+  .controls {
+    background: #1e293b;
+    padding: 24px 32px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    border-bottom: 1px solid #334155;
+  }
+  .controls label { font-size: 14px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .date-input {
+    padding: 10px 16px; border-radius: 8px; border: 1px solid #334155;
+    background: #0f172a; color: #f1f5f9; font-size: 16px; font-family: inherit;
+    cursor: pointer; outline: none; transition: border-color 0.2s;
+  }
+  .date-input:focus { border-color: #3b82f6; }
+  .today-btn {
+    padding: 10px 18px; background: #1d4ed8; color: white; border: none;
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+  }
+  .today-btn:hover { background: #2563eb; }
+  .refresh-btn {
+    padding: 10px 18px; background: #0f3460; color: #93c5fd;
+    border: 1px solid #1d4ed8; border-radius: 8px; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: all 0.2s;
+  }
+  .refresh-btn:hover { background: #1d4ed8; color: white; }
+  .refresh-btn.loading { opacity: 0.6; cursor: not-allowed; }
+  .print-btn {
+    padding: 10px 18px; background: #064e3b; color: #6ee7b7;
+    border: 1px solid #065f46; border-radius: 8px; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: background 0.2s;
+  }
+  .print-btn:hover { background: #065f46; }
+  .date-display { margin-left: auto; font-size: 14px; color: #64748b; }
+  .date-display span { color: #93c5fd; font-weight: 600; }
+
+  .data-status {
+    padding: 8px 32px; font-size: 12px; color: #64748b;
+    display: flex; align-items: center; gap: 8px; background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.ok { background: #10b981; }
+  .status-dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+  .status-dot.error { background: #ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .summary-bar {
+    display: flex; gap: 16px; padding: 20px 32px; background: #1e293b; flex-wrap: wrap;
+    border-bottom: 1px solid #334155;
+  }
+  .summary-card {
+    flex: 1; min-width: 160px; background: #0f172a; border-radius: 10px;
+    padding: 14px 18px; border-left: 4px solid; display: flex; flex-direction: column; gap: 4px;
+  }
+  .summary-card.am { border-color: #f59e0b; }
+  .summary-card.pm { border-color: #6366f1; }
+  .summary-card.total { border-color: #10b981; }
+  .summary-label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.8px; }
+  .summary-value { font-size: 28px; font-weight: 800; color: #f1f5f9; }
+  .summary-detail { font-size: 12px; color: #94a3b8; }
+
+  .trips-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 24px 32px; }
+  @media (max-width: 700px) { .trips-grid { grid-template-columns: 1fr; } }
+
+  .trip-card { background: #1e293b; border-radius: 12px; overflow: hidden; border: 1px solid #334155; }
+  .trip-header { padding: 14px 20px; display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 15px; }
+  .trip-header.am1 { background: linear-gradient(90deg, #92400e, #1e293b); color: #fcd34d; }
+  .trip-header.am2 { background: linear-gradient(90deg, #78350f, #1e293b); color: #fbbf24; }
+  .trip-header.pm1 { background: linear-gradient(90deg, #312e81, #1e293b); color: #a5b4fc; }
+  .trip-header.pm2 { background: linear-gradient(90deg, #3730a3, #1e293b); color: #c7d2fe; }
+  .trip-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-left: auto; letter-spacing: 0.5px; }
+  .am1 .trip-badge, .am2 .trip-badge { background: #fbbf2422; color: #fbbf24; border: 1px solid #fbbf2444; }
+  .pm1 .trip-badge, .pm2 .trip-badge { background: #818cf822; color: #818cf8; border: 1px solid #818cf844; }
+
+  .passenger-list { padding: 12px 20px 16px; }
+  .passenger-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; margin-bottom: 5px;
+    font-size: 14px; font-weight: 500; background: #0f172a; color: #e2e8f0;
+    border: 1px solid #1e293b; transition: background 0.15s;
+  }
+  .passenger-item:hover { background: #1e3a5f; }
+  .passenger-num {
+    width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;
+    background: #1d4ed8; color: white;
+  }
+  .empty-msg { text-align: center; padding: 20px; color: #475569; font-size: 13px; font-style: italic; }
+  .no-data { text-align: center; padding: 60px 32px; color: #475569; }
+  .no-data .icon { font-size: 48px; margin-bottom: 12px; }
+
+  @media print {
+    .controls, .data-status { display: none !important; }
+    .trips-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">⛵</div>
+  <div>
+    <div class="header-title">SECURITY TRANSPORT ROSTER</div>
+    <div class="header-sub">YAROLEVU ↔ MANA — Daily Passenger List</div>
+  </div>
+  <div class="header-logo">
+    <svg viewBox="0 0 370 90" xmlns="http://www.w3.org/2000/svg" height="56">
+      <circle cx="45" cy="45" r="41" fill="none" stroke="white" stroke-width="2.8"/>
+      <g fill="white" transform="translate(45,45)">
+        <ellipse rx="8" ry="18" transform="rotate(0) translate(0,-22)"/>
+        <ellipse rx="8" ry="18" transform="rotate(60) translate(0,-22)"/>
+        <ellipse rx="8" ry="18" transform="rotate(120) translate(0,-22)"/>
+        <ellipse rx="8" ry="18" transform="rotate(180) translate(0,-22)"/>
+        <ellipse rx="8" ry="18" transform="rotate(240) translate(0,-22)"/>
+        <ellipse rx="8" ry="18" transform="rotate(300) translate(0,-22)"/>
+        <circle r="5"/>
+        <circle cx="0" cy="-36" r="2.5"/>
+        <circle cx="31" cy="-18" r="2.5"/>
+        <circle cx="31" cy="18" r="2.5"/>
+        <circle cx="0" cy="36" r="2.5"/>
+        <circle cx="-31" cy="18" r="2.5"/>
+        <circle cx="-31" cy="-18" r="2.5"/>
+      </g>
+      <text x="98" y="36" font-family="Arial Black, Arial" font-weight="900" font-size="22" fill="white" letter-spacing="0.5">SEG HOLDCO, LLC</text>
+      <line x1="98" y1="48" x2="138" y2="48" stroke="white" stroke-width="1.2"/>
+      <text x="146" y="54" font-family="Arial" font-weight="600" font-size="11" fill="white" letter-spacing="4">FIJI BRANCH</text>
+      <line x1="248" y1="48" x2="288" y2="48" stroke="white" stroke-width="1.2"/>
+    </svg>
+  </div>
+</div>
+
+<div class="controls">
+  <label>SELECT DATE</label>
+  <input type="date" class="date-input" id="dateInput">
+  <button class="today-btn" onclick="setToday()">⛵ Today</button>
+  <button class="refresh-btn" id="refreshBtn" onclick="loadData()">🔄 Refresh Data</button>
+  <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+  <div class="date-display" id="dateDisplay"></div>
+</div>
+
+<div class="data-status" id="dataStatus">
+  <div class="status-dot loading" id="statusDot"></div>
+  <span id="statusText">Loading data from Google Sheets...</span>
+</div>
+
+<div class="summary-bar" id="summaryBar" style="display:none">
+  <div class="summary-card am">
+    <div class="summary-label">AM Trips Total</div>
+    <div class="summary-value" id="amTotal">0</div>
+    <div class="summary-detail">Passengers travelling morning</div>
+  </div>
+  <div class="summary-card pm">
+    <div class="summary-label">PM Trips Total</div>
+    <div class="summary-value" id="pmTotal">0</div>
+    <div class="summary-detail">Passengers travelling afternoon</div>
+  </div>
+  <div class="summary-card total">
+    <div class="summary-label">Total for the Day</div>
+    <div class="summary-value" id="dayTotal">0</div>
+    <div class="summary-detail">All transport movements</div>
+  </div>
+</div>
+
+<div id="mainContent">
+  <div class="no-data"><div class="icon">⏳</div><p>Loading roster data...</p></div>
+</div>
+
+<script>
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSVRsSZ2ovu4H-hnYuMrzDEWYc0b0GjeGAqj_BdDVnoL4Cc3WqodwrZzHZhIHF5lnmBU2KdscJE78yY/pub?gid=1882337116&single=true&output=csv';
+
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+let SCHEDULE = {};
+let currentDate = '';
+
+function parseCSV(text) {
+  // Handle quoted fields with commas inside
+  const lines = text.replace(/\r/g, '').split('\n');
+  return lines.map(line => {
+    const cols = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') { inQ = !inQ; }
+      else if (line[i] === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else cur += line[i];
+    }
+    cols.push(cur.trim());
+    return cols;
+  });
+}
+
+function toISO(val) {
+  const s = (val || '').trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  const n = parseFloat(s);
+  if (!isNaN(n) && n > 40000) {
+    const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  return null;
+}
+
+function buildSchedule(rows) {
+  if (rows.length < 5) return {};
+
+  const dateRow = rows[3] || [];
+  const peopleRows = rows.slice(4, 16);
+
+  const dateCols = {};
+  for (let c = 2; c < dateRow.length; c++) {
+    const d = toISO(dateRow[c]);
+    if (d) dateCols[c] = d;
+  }
+
+  const ynByDate = {}, ydByDate = {};
+  for (const [ci, dateStr] of Object.entries(dateCols)) {
+    const yn = [], yd = [];
+    for (const row of peopleRows) {
+      const name = (row[1] || '').trim();
+      if (!name || name === 'FULL NAME') continue;
+      const code = (row[parseInt(ci)] || '').trim().toUpperCase();
+      if (code === 'YN') yn.push(name);
+      else if (code === 'YD') yd.push(name);
+    }
+    ynByDate[dateStr] = yn;
+    ydByDate[dateStr] = yd;
+  }
+
+  const sortedDates = [...new Set(Object.values(dateCols))].sort();
+  const schedule = {};
+  for (let i = 0; i < sortedDates.length; i++) {
+    const d = sortedDates[i];
+    const prev = i > 0 ? sortedDates[i-1] : null;
+    schedule[d] = {
+      AM1: ydByDate[d] || [],
+      AM2: prev ? (ynByDate[prev] || []) : [],
+      PM1: ynByDate[d] || [],
+      PM2: ydByDate[d] || [],
+    };
+  }
+  return schedule;
+}
+
+async function loadData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('loading');
+  btn.textContent = '⏳ Loading...';
+  setStatus('loading', 'Fetching latest data from Google Sheets...');
+
+  try {
+    let text = null;
+
+    // Try direct fetch first (works when hosted on a web server)
+    try {
+      const direct = await fetch(SHEET_URL + '&nocache=' + Date.now());
+      if (direct.ok) {
+        text = await direct.text();
+      }
+    } catch(e) { /* CORS blocked, will try proxy */ }
+
+    // Fallback to proxy (needed when opening as local file)
+    if (!text) {
+      const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(SHEET_URL);
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      text = json.contents;
+    }
+
+    if (!text) throw new Error('Empty response');
+    const rows = parseCSV(text);
+    SCHEDULE = buildSchedule(rows);
+
+    const dates = Object.keys(SCHEDULE).sort();
+    if (dates.length === 0) throw new Error('No schedule data found — check the sheet structure.');
+
+    document.getElementById('dateInput').min = dates[0];
+    document.getElementById('dateInput').max = dates[dates.length - 1];
+
+    const t = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    setStatus('ok', `✓ Live data — ${dates.length} days loaded (${dates[0]} → ${dates[dates.length-1]}) · Updated ${t}`);
+
+    if (currentDate && SCHEDULE[currentDate]) updateDashboard(currentDate);
+    else setToday();
+
+  } catch(err) {
+    setStatus('error', '⚠ Could not load data: ' + err.message);
+    document.getElementById('mainContent').innerHTML = `
+      <div class="no-data">
+        <div class="icon">⚠️</div>
+        <p style="margin-bottom:8px">Could not load roster data.</p>
+        <small style="color:#64748b">Make sure the Google Sheet is published and you have internet access.<br>Try clicking "Refresh Data".</small>
+      </div>`;
+  } finally {
+    btn.classList.remove('loading');
+    btn.textContent = '🔄 Refresh Data';
+  }
+}
+
+function setStatus(type, msg) {
+  document.getElementById('statusDot').className = 'status-dot ' + type;
+  document.getElementById('statusText').textContent = msg;
+}
+
+function formatDate(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function buildList(names) {
+  if (!names || names.length === 0) return '<div class="empty-msg">No passengers scheduled</div>';
+  return names.map((n,i) => `<div class="passenger-item"><div class="passenger-num">${i+1}</div>${n}</div>`).join('');
+}
+
+function updateDashboard(dateStr) {
+  currentDate = dateStr;
+  const data = SCHEDULE[dateStr];
+  const summaryBar = document.getElementById('summaryBar');
+  const main = document.getElementById('mainContent');
+  const display = document.getElementById('dateDisplay');
+
+  if (!data) {
+    summaryBar.style.display = 'none';
+    display.innerHTML = '';
+    main.innerHTML = `<div class="no-data"><div class="icon">📭</div><p>No data for this date.<br><small style="color:#64748b">This date may not be in the roster yet.</small></p></div>`;
+    return;
+  }
+
+  const { AM1, AM2, PM1, PM2 } = data;
+  display.innerHTML = `Selected: <span>${formatDate(dateStr)}</span>`;
+  summaryBar.style.display = 'flex';
+  document.getElementById('amTotal').textContent = AM1.length + AM2.length;
+  document.getElementById('pmTotal').textContent = PM1.length + PM2.length;
+  document.getElementById('dayTotal').textContent = AM1.length + AM2.length + PM1.length + PM2.length;
+
+  main.innerHTML = `
+    <div class="trips-grid">
+      <div class="trip-card">
+        <div class="trip-header am1">🌅 AM TRIP 1 — YARO → MANA<span class="trip-badge">AM · ${AM1.length} pax</span></div>
+        <div class="passenger-list">${buildList(AM1)}</div>
+      </div>
+      <div class="trip-card">
+        <div class="trip-header am2">🌅 AM TRIP 2 — MANA → YARO<span class="trip-badge">AM · ${AM2.length} pax</span></div>
+        <div class="passenger-list">${buildList(AM2)}</div>
+      </div>
+      <div class="trip-card">
+        <div class="trip-header pm1">🌆 PM TRIP 1 — YARO → MANA<span class="trip-badge">PM · ${PM1.length} pax</span></div>
+        <div class="passenger-list">${buildList(PM1)}</div>
+      </div>
+      <div class="trip-card">
+        <div class="trip-header pm2">🌆 PM TRIP 2 — MANA → YARO<span class="trip-badge">PM · ${PM2.length} pax</span></div>
+        <div class="passenger-list">${buildList(PM2)}</div>
+      </div>
+    </div>`;
+}
+
+function setToday() {
+  const d = new Date();
+  const s = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  document.getElementById('dateInput').value = s;
+  updateDashboard(s);
+}
+
+document.getElementById('dateInput').addEventListener('change', e => updateDashboard(e.target.value));
+
+loadData();
+</script>
+</body>
+</html>
