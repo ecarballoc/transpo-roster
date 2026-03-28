@@ -109,9 +109,52 @@
   .no-data { text-align: center; padding: 60px 32px; color: #475569; }
   .no-data .icon { font-size: 48px; margin-bottom: 12px; }
 
+  .print-date-banner { display: none; }
   @media print {
+    body { background: white !important; color: #000 !important; }
+
+    /* Hide controls */
     .controls, .data-status { display: none !important; }
-    .trips-grid { grid-template-columns: 1fr 1fr; }
+
+    /* Header */
+    .header { background: #1e293b !important; padding: 16px 24px !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* Print date banner */
+    .print-date-banner {
+      display: block !important;
+      background: #1d4ed8 !important;
+      color: white !important;
+      text-align: center;
+      padding: 10px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* Summary bar */
+    .summary-bar { background: #f1f5f9 !important; border: 1px solid #cbd5e1 !important; }
+    .summary-card { background: white !important; border: 2px solid !important; }
+    .summary-label { color: #1e293b !important; }
+    .summary-value { color: #0f172a !important; }
+    .summary-detail { color: #334155 !important; font-weight: 600 !important; }
+
+    /* Trip grid */
+    .trips-grid { grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 16px; }
+    .trip-card { border: 2px solid #334155 !important; }
+
+    /* Trip headers - force dark backgrounds to print */
+    .trip-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .trip-header.am1 { background: #92400e !important; color: #fcd34d !important; }
+    .trip-header.am2 { background: #78350f !important; color: #fbbf24 !important; }
+    .trip-header.pm1 { background: #312e81 !important; color: #a5b4fc !important; }
+    .trip-header.pm2 { background: #3730a3 !important; color: #c7d2fe !important; }
+    .trip-badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* Passenger items */
+    .passenger-item { background: #f8fafc !important; color: #0f172a !important; border: 1px solid #e2e8f0 !important; font-weight: 600 !important; }
+    .passenger-num { background: #1d4ed8 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
 </head>
@@ -121,7 +164,7 @@
   <div class="header-icon">⛵</div>
   <div>
     <div class="header-title">SECURITY TRANSPORT ROSTER</div>
-    <div class="header-sub">YAROLEVU ↔ MANA — Daily Passenger List</div>
+    <div class="header-sub">YARO ↔ MANA — Daily Passenger List</div>
   </div>
   <div class="header-logo">
     <svg viewBox="0 0 370 90" xmlns="http://www.w3.org/2000/svg" height="56">
@@ -157,6 +200,8 @@
   <button class="print-btn" onclick="window.print()">🖨️ Print</button>
   <div class="date-display" id="dateDisplay"></div>
 </div>
+
+<div class="print-date-banner" id="printDateBanner">TRANSPORT ROSTER — DATE: —</div>
 
 <div class="data-status" id="dataStatus">
   <div class="status-dot loading" id="statusDot"></div>
@@ -381,9 +426,19 @@ function setStatus(type, msg) {
   document.getElementById('statusText').textContent = msg;
 }
 
+function ordinal(n) {
+  const s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
 function formatDate(ds) {
   const d = new Date(ds + 'T00:00:00');
-  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}`;
+}
+
+function formatDatePrint(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${ordinal(d.getDate())}`;
 }
 
 function buildList(names) {
@@ -407,6 +462,7 @@ function updateDashboard(dateStr) {
 
   const { AM1, AM2, PM1, PM2 } = data;
   display.innerHTML = `Selected: <span>${formatDate(dateStr)}</span>`;
+  document.getElementById('printDateBanner').textContent = formatDatePrint(dateStr);
   summaryBar.style.display = 'flex';
   document.getElementById('amTotal').textContent = AM1.length + AM2.length;
   document.getElementById('pmTotal').textContent = PM1.length + PM2.length;
